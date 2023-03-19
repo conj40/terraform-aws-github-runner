@@ -1,11 +1,8 @@
 import { GetObjectTaggingCommand, S3Client, Tag } from '@aws-sdk/client-s3';
+import { Upload } from '@aws-sdk/lib-storage';
 import { Octokit } from '@octokit/rest';
-import { S3 } from 'aws-sdk';
-import AWS from 'aws-sdk';
 import axios from 'axios';
-import { PassThrough } from 'stream';
 import { Stream } from 'stream';
-import { Upload } from "@aws-sdk/lib-storage";
 
 import { logger as rootLogger } from './logger';
 
@@ -57,8 +54,10 @@ async function getReleaseAsset(runnerOs = 'linux', runnerArch = 'x64'): Promise<
 }
 
 async function uploadToS3(
-  s3Client: S3Client, cacheObject: CacheObject, actionRunnerReleaseAsset: ReleaseAsset): Promise<void> {
-
+  s3Client: S3Client,
+  cacheObject: CacheObject,
+  actionRunnerReleaseAsset: ReleaseAsset,
+): Promise<void> {
   const response = await axios.get(actionRunnerReleaseAsset.downloadUrl, {
     method: 'GET',
     responseType: 'stream',
@@ -80,11 +79,10 @@ async function uploadToS3(
 
   upload.on('httpUploadProgress', () => logger.debug(`Downloading ${actionRunnerReleaseAsset.name} in progress`));
   logger.debug(`Start downloading ${actionRunnerReleaseAsset.name} and uploading to S3.`);
-  await upload.done().then(
-    () => logger.info(`The new distribution ${actionRunnerReleaseAsset.name} is uploaded to S3.`)
-  ).catch(
-    (e) => logger.error('Error uploading to S3', e)
-  );
+  await upload
+    .done()
+    .then(() => logger.info(`The new distribution ${actionRunnerReleaseAsset.name} is uploaded to S3.`))
+    .catch((e) => logger.error('Error uploading to S3', e));
 }
 
 export async function sync(): Promise<void> {
