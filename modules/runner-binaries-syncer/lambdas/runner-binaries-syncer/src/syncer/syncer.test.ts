@@ -142,7 +142,6 @@ describe('Synchronize action distribution.', () => {
     });
   });
 
-
   test.each(runnerOs)('%p Tags, but no version, distribution should update.', async (os) => {
     process.env.S3_OBJECT_KEY = bucketObjectKey(os);
     process.env.GITHUB_RUNNER_OS = os;
