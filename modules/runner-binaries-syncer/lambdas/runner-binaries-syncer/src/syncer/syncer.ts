@@ -1,3 +1,4 @@
+import { GetObjectTaggingCommand, S3Client, Tag } from '@aws-sdk/client-s3';
 import { Octokit } from '@octokit/rest';
 import { S3 } from 'aws-sdk';
 import AWS from 'aws-sdk';
@@ -16,15 +17,16 @@ interface CacheObject {
 }
 
 async function getCachedVersion(s3: S3, cacheObject: CacheObject): Promise<string | undefined> {
+  const client = new S3Client({});
+  const command = new GetObjectTaggingCommand({
+    Bucket: cacheObject.bucket,
+    Key: cacheObject.key,
+  });
+
   try {
-    const objectTagging = await s3
-      .getObjectTagging({
-        Bucket: cacheObject.bucket,
-        Key: cacheObject.key,
-      })
-      .promise();
-    const versions = objectTagging.TagSet?.filter((t: S3.Tag) => t.Key === versionKey);
-    return versions.length === 1 ? versions[0].Value : undefined;
+    const objectTagging = await client.send(command);
+    const versions = objectTagging.TagSet?.filter((t: Tag) => t.Key === versionKey);
+    return versions?.length === 1 ? versions[0].Value : undefined;
   } catch (e) {
     logger.debug('No tags found');
     return undefined;
