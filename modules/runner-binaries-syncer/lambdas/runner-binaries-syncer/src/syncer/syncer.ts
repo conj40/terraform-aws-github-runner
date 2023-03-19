@@ -18,15 +18,14 @@ interface CacheObject {
   key: string;
 }
 
-async function getCachedVersion(s3: S3, cacheObject: CacheObject): Promise<string | undefined> {
-  const client = new S3Client({});
+async function getCachedVersion(s3Client: S3Client, cacheObject: CacheObject): Promise<string | undefined> {
   const command = new GetObjectTaggingCommand({
     Bucket: cacheObject.bucket,
     Key: cacheObject.key,
   });
 
   try {
-    const objectTagging = await client.send(command);
+    const objectTagging = await s3Client.send(command);
     const versions = objectTagging.TagSet?.filter((t: Tag) => t.Key === versionKey);
     return versions?.length === 1 ? versions[0].Value : undefined;
   } catch (e) {
@@ -57,14 +56,13 @@ async function getReleaseAsset(runnerOs = 'linux', runnerArch = 'x64'): Promise<
   return assets?.length === 1 ? { name: assets[0].name, downloadUrl: assets[0].browser_download_url } : undefined;
 }
 
-async function uploadToS3(s3: S3, cacheObject: CacheObject, actionRunnerReleaseAsset: ReleaseAsset): Promise<void> {
+async function uploadToS3(
+  s3Client: S3Client, cacheObject: CacheObject, actionRunnerReleaseAsset: ReleaseAsset): Promise<void> {
 
   const response = await axios.get(actionRunnerReleaseAsset.downloadUrl, {
     method: 'GET',
     responseType: 'stream',
   });
-
-  const s3Client = new S3Client({});
 
   const passThrough = new Stream.PassThrough();
   response.data.pipe(passThrough);
@@ -90,7 +88,7 @@ async function uploadToS3(s3: S3, cacheObject: CacheObject, actionRunnerReleaseA
 }
 
 export async function sync(): Promise<void> {
-  const s3 = new AWS.S3();
+  const s3 = new S3Client({});
 
   const runnerOs = process.env.GITHUB_RUNNER_OS || 'linux';
   const runnerArch = process.env.GITHUB_RUNNER_ARCHITECTURE || 'x64';
