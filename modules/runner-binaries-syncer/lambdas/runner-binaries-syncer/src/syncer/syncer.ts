@@ -4,6 +4,8 @@ import { S3 } from 'aws-sdk';
 import AWS from 'aws-sdk';
 import axios from 'axios';
 import { PassThrough } from 'stream';
+import { Stream } from 'stream';
+import { Upload } from "@aws-sdk/lib-storage";
 
 import { logger as rootLogger } from './logger';
 
@@ -56,43 +58,35 @@ async function getReleaseAsset(runnerOs = 'linux', runnerArch = 'x64'): Promise<
 }
 
 async function uploadToS3(s3: S3, cacheObject: CacheObject, actionRunnerReleaseAsset: ReleaseAsset): Promise<void> {
-  const writeStream = new PassThrough();
-  const writePromise = s3
-    .upload({
+
+  const response = await axios.get(actionRunnerReleaseAsset.downloadUrl, {
+    method: 'GET',
+    responseType: 'stream',
+  });
+
+  const s3Client = new S3Client({});
+
+  const passThrough = new Stream.PassThrough();
+  response.data.pipe(passThrough);
+
+  const upload = new Upload({
+    client: s3Client,
+    params: {
       Bucket: cacheObject.bucket,
       Key: cacheObject.key,
       Tagging: versionKey + '=' + actionRunnerReleaseAsset.name,
-      Body: writeStream,
+      Body: passThrough,
       ServerSideEncryption: process.env.S3_SSE_ALGORITHM,
-      SSEKMSKeyId: process.env.S3_SSE_KMS_KEY_ID,
-    })
-    .promise();
-
-  logger.debug('Start downloading %s and uploading to S3.', actionRunnerReleaseAsset.name);
-
-  const readPromise = new Promise<void>((resolve, reject) => {
-    axios
-      .request<NodeJS.ReadableStream>({
-        method: 'get',
-        url: actionRunnerReleaseAsset.downloadUrl,
-        responseType: 'stream',
-      })
-      .then((res) => {
-        res.data
-          .pipe(writeStream)
-
-          .on('finish', () => resolve())
-          .on('error', (error) => reject(error));
-      })
-      .catch((error) => reject(error));
+    },
   });
 
-  await Promise.all([readPromise, writePromise])
-    .then(() => logger.info(`The new distribution is uploaded to S3.`))
-    .catch((error) => {
-      logger.error(`Uploading of the new distribution to S3 failed: ${error}`);
-      throw error;
-    });
+  upload.on('httpUploadProgress', () => logger.debug(`Downloading ${actionRunnerReleaseAsset.name} in progress`));
+  logger.debug(`Start downloading ${actionRunnerReleaseAsset.name} and uploading to S3.`);
+  await upload.done().then(
+    () => logger.info(`The new distribution ${actionRunnerReleaseAsset.name} is uploaded to S3.`)
+  ).catch(
+    (e) => logger.error('Error uploading to S3', e)
+  );
 }
 
 export async function sync(): Promise<void> {
