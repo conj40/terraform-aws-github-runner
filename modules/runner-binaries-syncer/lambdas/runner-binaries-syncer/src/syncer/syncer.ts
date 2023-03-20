@@ -59,7 +59,6 @@ async function uploadToS3(
   actionRunnerReleaseAsset: ReleaseAsset,
 ): Promise<void> {
   const response = await axios.get(actionRunnerReleaseAsset.downloadUrl, {
-    method: 'GET',
     responseType: 'stream',
   });
 
@@ -82,7 +81,7 @@ async function uploadToS3(
   await upload
     .done()
     .then(() => logger.info(`The new distribution ${actionRunnerReleaseAsset.name} is uploaded to S3.`))
-    .catch((e) => logger.error('Error uploading to S3', e));
+    .catch((e) => logger.error(`Error uploading ${actionRunnerReleaseAsset.name} to S3`, e));
 }
 
 export async function sync(): Promise<void> {
